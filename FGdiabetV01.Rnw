@@ -1,0 +1,244 @@
+\documentclass[a4paper,12pt, titlepage]{article}
+\usepackage[english]{babel}
+\usepackage[svgnames]{xcolor} % Required for colour specification
+\newcommand{\plogo}{\fbox{$\mathcal{PL}$}} % Generic dummy publisher logo
+\usepackage[utf8x]{inputenc} % Required for inputting international characters
+\usepackage{longtable}
+\usepackage[a4paper,top=2cm,bottom=1.5cm,left=2cm,right=2cm]{geometry}
+\usepackage{multicol}
+%\usepackage[pdftex]{graphicx}
+\usepackage{fancyhdr}
+\usepackage[final]{pdfpages}
+\usepackage{amssymb,amsmath}
+%\usepackage{Sweave}
+\usepackage{enumerate}
+\usepackage{float}
+\usepackage{array}
+\newcolumntype{L}[1]{>{\raggedright\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
+\newcolumntype{C}[1]{>{\centering\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
+\newcolumntype{R}[1]{>{\raggedleft\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
+\usepackage{threeparttable, tablefootnote}
+\usepackage{lscape}
+\usepackage{multirow}
+\usepackage{pdflscape}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{colortbl, xcolor}
+\usepackage{color} 
+\usepackage{arydshln}
+%\usepackage{draftwatermark}
+%\SetWatermarkText{Draft}
+%\SetWatermarkScale{8}
+
+% to coloured verbatim
+\usepackage{fancyvrb}
+\DefineVerbatimEnvironment{verbatim}
+  {Verbatim}
+  {fontsize=\small,formatcom=\color{blue}}
+
+%\newcommand{\headrulecolor}[1]{\patchcmd{\headrule}{\hrule}{\color{#1}\hrule}{}{}}
+%\newcommand{\footrulecolor}[1]{\patchcmd{\footrule}{\hrule}{\color{#1}\hrule}{}{}}
+
+\pagestyle{fancy}% Change page style to fancy
+\fancyhf{}% Clear header/footer
+\fancyhead[L]{ }
+\fancyhead[C]{\tiny Som la Pera Study (re-analysis)}
+\fancyhead[R]{\today}
+\fancyfoot[L]{Author: Joan Vila}
+\fancyfoot[R]{Page: \thepage}
+\renewcommand{\headrulewidth}{1.2pt}% Default \headrulewidth is 0.4pt
+\renewcommand{\footrulewidth}{0.8pt}% Default \footrulewidth is 0pt
+
+
+
+\newenvironment{changemargin1}{
+  \begin{list}{}{
+    \setlength{\leftmargin}{-1cm}
+    \setlength{\rightmargin}{1cm}
+    \footnotesize
+  }
+  \item[]
+  }{\end{list}}
+
+\setcounter{tocdepth}{4} 
+\setcounter{secnumdepth}{4}
+%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%
+\title{
+\begin{center}
+\textbf{\Huge {\color{red}``Role of Glomerular Filtration rate in diabetic patients with Heart Failure Disease''}\\
+\
+\\
+\large Investigators:\\
+Pau Codina Verdaguer, \texttt{pau.codi@gmail.com}\\
+Josep Lupón Roses, \texttt{Jluponroses@gmail.com}}\\
+\
+\\
+Version 1.0\\
+\
+\\
+{\large - Joan Vila -}\\
+\normalsize \texttt{joanviladomenech{@}gmail.com}
+\date{\today} 
+\end{center}
+}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+<<echo=FALSE, results='hide', warning=FALSE, error=FALSE, message=FALSE>>=
+rm(list=ls())
+
+library(readxl)
+library(readr)
+library(Hmisc)
+library(Epi)
+library(compareGroups)
+library(xtable)
+library(mice)
+library(mitools)
+library(glmmML)
+
+
+setwd("/Users/jvila/Dropbox/JLupon/FGdiabet/")
+load("./dat/dat.rda")
+@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}
+\maketitle
+\newpage
+
+\section{Version History}
+\begin{table}[H]
+\centering
+\begin{tabular}{L{2cm}  C{3.5cm}  L{9cm}}
+\hline
+Version  & Effective Date & Changes \\
+\hline
+ &  & \\
+1 & 19-April-2022 & Exploració inicial de les dades\\
+ &  & \\
+&  & \\
+\hline
+\end{tabular}
+\end{table}
+\newpage
+\tableofcontents
+%\newpage
+%\listoftables 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Overview}
+Es parteix la de base de dades ``FGR\_evolutiu\_DM.xlsx''. \\
+
+Aquesta base de dades té \Sexpr{nrow(dat)} registres de \Sexpr{length(unique(dat$id))} pacients diabètics amb Heart Failure.\\
+
+Els objectius d'aquestes anàlisis són:
+\begin{enumerate}
+\item Avaluar els predictors que modifiquen els valors de Filtrat Glomerular, mesurat com \textbf{EPI}
+\item Avaluar el rol del EPI en la mortalitat (total i cardiovascular)
+\end{enumerate}
+
+En Pau suggereix:
+\begin{verbatim}
+1) L'evolució del filtrat glomerular (epi) dels 935 pacients amb diabetes mellitus
+2) Analitzar i comparar els diferents subgrups:
+   -Homes (1) vs Dones (0)
+   -IMC (<18.5, 18.5-24.9, 25-29.9, >=30)
+   -Bon control HbA1c (>70% de mesures ben controlades, tot i que podem agafar un 
+   altre punt de tall)
+   -Etiologia isquèmica (1) vs Altres
+   -Hipertensió arterial (Si/No)
+   -EF<=40%/EF 41-49%/EF>=50%
+   -Hospitalizations (Ingressos_agrupats):0(0)/ 1-2(1)/ >=3(2)   
+   -IECA/ARA II (Si/No)
+   -ARNI (Si/No)
+3)Crear quartils en funció de la pendent ("slope") de caiguda del filtrat i mortalitat global,
+  mortalitat cardiovascular i hospitaltzacions per insuficiència cardíaca en el seguiment 
+  segons el quartil de la pendent. 
+Les causes de mort estan codificades com:
+    Cardiovascular=1,2,3,4,5,7
+    No cardiovascular=6, 
+    Desconeguda=0/missing. 
+
+\end{verbatim}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Exploratory analysis}
+\subsection{Exploratory analysis}
+<<echo=FALSE, results='asis', warning=FALSE>>=
+mytab <- compareGroups(SEX ~ Edat + HTA + IMCcat + NYHAcat + etiology
+                          + EFcat + FA_FT + HbA1ccat + TEMPS_EVOL
+                          + Creat_st + epi + EPIcat + CRT_s
+                          + ACEI_ARB_s + ARNI_s + Beta_block_s + 
+                          + MRA_s + Loop_diur_s + Digoxin_s, 
+                       data = dat, subset = VISITMONTH==0, 
+                       method= c(1,3,3,3,3,
+                                 3,3,3,2,
+                                 2,1,3,
+                                 3,3,3,
+                                 3,3,3))
+export2latex(             
+createTable(mytab, show.all = T, show.n = TRUE, all.last = TRUE, hide.no = "No", 
+            hide = c(NYHAcat="I-II",etiology = "Non-Ischemic", HbA1ccat= "<=70%"))
+, caption = "Baseline characteristics",  size = 'small')
+@
+<<echo=FALSE, results='hide'>>=
+miss <- sum(complete.cases(dat[dat$VISITMONTH==0, c("CRT_s", "ACEI_ARB_s", "ARNI_s", "Beta_block_s", "MRA_s", "Loop_diur_s", "Digoxin_s")]))
+@
+\textbf{Comentaris sobre aquesta taula}:\\
+.- No hi ha manera de recuperar els poc BMIs que falten?\\
+.- Perquè falten tants \%HBA1c?\\
+.- els tractments (des de CRT fins Digoxina) hi ha \Sexpr{nrow(subset(dat, VISITMONTH==0))- miss} pacients que tenen missing a tots els tractament\\
+.- de la Raça n'hem de fer alguna cosa?
+<<echo=FALSE, results='markup'>>=
+with(subset(dat, VISITMONTH==0), table(RAZA, useNA = "ifany"))
+@
+.- en Pau diu de centrar-nos en ``IECA/ARA II'' i ``ARNI''. Passem dels altres tractaments?
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\subsection{Time depending variables}
+Hi ha variables que al llarg del temps:
+\begin{itemize}
+\item són constants i ha de ser així; SEXE, ETIOLOGIA
+\item canvien, i és lògic que ho facin; Edat, Creat\_st, epi
+\item no canvien i haurien de canviar; HTA, IMC, NYHA, EF, FA\_FT, HbA1c, TEMPS\_EVOL, n\_total\_ingressos, CRT\_s, ACEI\_ARB\_s, ARNI\_s, Beta\_block\_s, MRA\_s, Loop\_diur\_s, Digoxin\_s
+\end{itemize}
+Les que ``no canvien i haurien de canviar'' entenc que són valors basals? fins hi tot els tractaments?
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\begin{landscape}
+\subsection{Exploring outcomes}
+<<echo=FALSE, results='asis', warning=FALSE>>=
+mytab <- compareGroups(EPIcat ~ admicat + DeathStat + status, 
+                       data = dat, subset = VISITMONTH==0)
+export2latex(             
+createTable(mytab, show.all = T, show.n = TRUE, all.last = TRUE, show.p.overall = FALSE, show.p.trend = TRUE)
+ , caption = "Main outcomes acconding to groups of EPI ",  size = 'small')
+@
+\textbf{Comentaris sobre aquesta taula}:\\
+.- Aquesta taula és sòls exploratòria. Per fer-ho bé cal analitzar-ho amb supervicencia i amb ``time depending''. {\color{red} Atenció: No utilitzar-la en el paper!!}\\
+.- la variable n\_total\_ingressos, la podem fer servir com ``outcome'', no com variable ``explicativa'' ja que aquesta informació la sabem al final del seguiment, no tenim la informació del dia que ingresa i el dia que surt
+\end{landscape}
+
+Notar que hi ha 5 valors missing a la mort. Això es deu a que hi ha 5 pacients (veure més avall) que el seu estat vital no s'ha posat a la visita 0. És un error?
+<<echo=FALSE, results='markup'>>=
+xid <- subset(dat, VISITMONTH==0 & is.na(status))$id
+xxx <- subset(dat, id%in%xid)
+xxx[, c("id", "VISITMONTH", "CAUSA_EXITUS")]
+@
+
+\end{document}
+
