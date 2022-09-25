@@ -1,0 +1,290 @@
+\documentclass[a4paper,12pt, titlepage]{article}
+\usepackage[english]{babel}
+\usepackage[svgnames]{xcolor} % Required for colour specification
+\newcommand{\plogo}{\fbox{$\mathcal{PL}$}} % Generic dummy publisher logo
+\usepackage[utf8x]{inputenc} % Required for inputting international characters
+\usepackage{longtable}
+\usepackage[a4paper,top=2cm,bottom=1.5cm,left=2cm,right=2cm]{geometry}
+\usepackage{multicol}
+%\usepackage[pdftex]{graphicx}
+\usepackage{fancyhdr}
+\usepackage[final]{pdfpages}
+\usepackage{amssymb,amsmath}
+%\usepackage{Sweave}
+\usepackage{enumerate}
+\usepackage{float}
+\usepackage{array}
+\newcolumntype{L}[1]{>{\raggedright\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
+\newcolumntype{C}[1]{>{\centering\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
+\newcolumntype{R}[1]{>{\raggedleft\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
+\usepackage{threeparttable, tablefootnote}
+\usepackage{lscape}
+\usepackage{multirow}
+\usepackage{pdflscape}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{colortbl, xcolor}
+\usepackage{color} 
+\usepackage{arydshln}
+%\usepackage{draftwatermark}
+%\SetWatermarkText{Draft}
+%\SetWatermarkScale{8}
+
+% to coloured verbatim
+\usepackage{fancyvrb}
+\DefineVerbatimEnvironment{verbatim}
+  {Verbatim}
+  {fontsize=\scriptsize,formatcom=\color{blue}}
+
+%\newcommand{\headrulecolor}[1]{\patchcmd{\headrule}{\hrule}{\color{#1}\hrule}{}{}}
+%\newcommand{\footrulecolor}[1]{\patchcmd{\footrule}{\hrule}{\color{#1}\hrule}{}{}}
+
+\pagestyle{fancy}% Change page style to fancy
+\fancyhf{}% Clear header/footer
+\fancyhead[L]{ }
+\fancyhead[C]{}
+\fancyhead[R]{}
+\fancyfoot[L]{Author: Joan Vila}
+\fancyfoot[R]{Page: \thepage}
+\renewcommand{\headrulewidth}{1.2pt}% Default \headrulewidth is 0.4pt
+\renewcommand{\footrulewidth}{0.8pt}% Default \footrulewidth is 0pt
+
+
+
+\newenvironment{changemargin1}{
+  \begin{list}{}{
+    \setlength{\leftmargin}{-1cm}
+    \setlength{\rightmargin}{1cm}
+    \footnotesize
+  }
+  \item[]
+  }{\end{list}}
+
+\setcounter{tocdepth}{4} 
+\setcounter{secnumdepth}{4}
+%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%
+\title{
+\begin{center}
+\textbf{\Huge {\color{red}``Analyzing Survival in ``Evolucio\_FG'' data selecting diabetic patients.''}\\
+\
+\\
+\large Investigators:\\
+Pau Codina Verdaguer, \texttt{pau.codi@gmail.com}\\
+Josep Lupón Roses, \texttt{Jluponroses@gmail.com}}\\
+\
+\\
+Version 1.0\\
+\
+\\
+{\large - Joan Vila -}\\
+\normalsize \texttt{joanviladomenech{@}gmail.com}
+\date{\today} 
+\end{center}
+}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}
+\maketitle
+\newpage
+
+\section{Version History}
+\begin{table}[H]
+\centering
+\begin{tabular}{L{2cm}  C{3.5cm}  L{9cm}}
+\hline
+Version  & Effective Date & Changes \\
+\hline
+ &  & \\
+1 & 29-May-2022 & Primera proposta d'anàlisi\\
+ &  & \\
+&  & \\
+\hline
+\end{tabular}
+\end{table}
+\newpage
+\tableofcontents
+%\newpage
+%\listoftables 
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Càrrega de packages, dades, funcions}
+<<echo=TRUE, results='hide', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize">>=
+rm(list=ls())
+library(compareGroups)
+library(tidyverse)
+library(magrittr)
+library(emmeans)
+library(lme4) 
+library(multcomp)
+library(lmerTest)
+library(gdata)
+library(Hmisc)
+library(riskRegression)
+library(prodlim)
+
+# def.chunk.hook  <- knitr::knit_hooks$get("chunk")
+# knitr::knit_hooks$set(chunk = function(x, options) {
+#   x <- def.chunk.hook(x, options)
+#   ifelse(options$size == "scriptsize", paste0("\n \\", options$size,"\n\n", x, "\n\n \\normalsize"), x)
+# })
+
+setwd("/Users/jvila/Dropbox/JLupon/FGdiabet/")
+
+load("./dat/dat.rda")
+load("./dat/datok.rda")
+
+## Primary for CV
+datok$crCV <- with(datok, ifelse(EXITUS==0, 0, 
+                           ifelse(CAUSA_EXITUS%in%c(1,2,3,4,5,7), 1,
+                           ifelse(CAUSA_EXITUS%in%c(0,6),2, NA))))
+subset(datok, is.na(crCV))[, c("EXITUS", "CAUSA_EXITUS")]
+attr(datok$crCV, "vari.label") <- "CV death for Competing risk"
+attr(datok$crCV, "value.labels") <- c("Alive" =0, "crCV"=1, "No-CV death"= 2)
+
+@
+\section{Introduction}
+En els resultats que em va ensenyar en Pau (Evolucio FG.html) s'havien eliminat els individus de $\geq$ 15 anys de seguiment. \\
+
+Por poder analitzar la supervivencia, amb les dades que es disposen, cal tenir en compte: 
+\begin{itemize}
+\item Que hi ha variables canviants en el temps 
+\item Que hi ha \emph{outcomes} que competeixen entre ells, morir de causa no cardiovascular 'compateix' amb morir de causa cardiovascular. 
+\end{itemize}
+
+Per poder analitzar aquest tipus de dades cal manipular-les i re-ordenar-les:\\
+\newpage
+%\begin{landscape}
+Original:
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="tiny" >>=
+options(width=300)
+subset(dat, id==54)[, c("VISITMONTH", "DATA_0", "DATA_EXITUS", "CAUSA_EXITUS", "epi", "Edat", "SEX", "IMCcat", "EFcat", "etiology", "ACEI_ARB_s")]
+@
+
+Nota que aquest pacient:
+\begin{itemize}
+\item es va visitar fins a 9 mesos més tard de la primera visita (aprox. juliol) i es va morir aprox 16 meses més tard (al Febrer del 2003) de la primera visita
+\item els valors de 'epi' 'Edat' etc. sabem com li han anat canviant al llarg del temps
+\item el 'SEX' i la 'etiology', lògicament no li han canviat 
+\item el 'IMCcat', la 'EFcat' i el tractament amb 'ACEI\_ARB\_s' segurament li ha canviat al llarg del temps de seguiment, però com que no sabem aquesta informació, assumim que ha estat constant al llarg del seguiment
+\end{itemize}
+\
+\\
+
+Per analitzar les dades cal re-ordenar-les:
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="tiny">>=
+subset(datok, id==54)[, c("VISITMONTH", "end", "EXITUS", "crCV","epi", "Edat", "SEX", "IMCcat", "EFcat", "etiology", "ACEI_ARB_s")]
+@
+
+Nota que p.e.
+\begin{itemize}
+\item des del mes 6 fins al mes 9 s'assumeix que el valor d'epi ha estat de 48.48030
+\item en estat vital és de 'viu' en tots els seguiment, fins el mes 16 en que mort de causa 1 (Cardiovascular)
+\end{itemize}
+%\end{landscape}
+\newpage
+Nota aquest pacient:
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="tiny">>=
+subset(dat, id==2454)[, c("VISITMONTH", "DATA_0", "DATA_EXITUS", "CAUSA_EXITUS", "epi", "Edat", "SEX", "IMCcat", "EFcat", "etiology", "ACEI_ARB_s")]
+@
+\begin{itemize}
+\item 12 mesos més tard del reclutament (la darrera visita que se li va fer) encara estava viu
+\item a partir del mes 12 el valor de 'epi' era de 78.49559, però a efectes de supervivencia, no fem servir aquesta informació
+\item nota que un cop re-ordenat, tenim una fila menys d'anquest pacient
+\end{itemize}
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="tiny">>=
+subset(datok, id==2454)[, c("VISITMONTH", "end", "EXITUS", "crCV", "epi", "Edat", "SEX", "IMCcat", "EFcat", "etiology", "ACEI_ARB_s")]
+@
+
+\subsection{Total individus i registres utilitzats al analitzar la supervicencia}
+Per poder fer la base de dades adequada per analitzar supervivencia m'ha calgut re-ordenar-la com he explicat més amunt i a més eliminar visites repetides fetes en el mateix mes, p.e.
+
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="tiny">>=
+subset(dat, id==434)[1:5, c("VISITMONTH", "DATA_0", "DATA_EXITUS", "CAUSA_EXITUS", "epi", "Edat", "SEX", "IMCcat", "EFcat", "etiology", "ACEI_ARB_s")]
+@
+Nota que aquest individu té dos visites al mes 3. El que he fet és eliminar la segona. \\
+
+En resum:
+\begin{itemize}
+\item la base de dades original tenia \Sexpr{nrow(dat)} i \Sexpr{length(unique(dat$id))} individus
+\item un cop eliminades les visites de 15 anys o més de seguiment, la base de dades té \Sexpr{nrow(subset(dat, VISITMONTH < 15*12))} i \Sexpr{length(unique(subset(dat, VISITMONTH < 15*12)$id))} individus
+\item un cop re-ordenat (eliminat darrer registre en el vius, i les visistes repetides) la base de dades té \Sexpr{nrow(datok)} i \Sexpr{length(unique(datok$id))} individus
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Survival analysis}
+\subsection{Outcome = Cardiovascular Death (competing with other causes)}
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="tiny">>=
+#  funcio per arreglar el resultat dels models
+arreglaMod <- function(mymodel){
+  resu <- summary(mymodel)
+  resu <- data.frame(cbind(resu$conf.int[, c("exp(coef)", "2.5%", "97.5%")], resu$coef[, "p-value"]))
+  names(resu) <-  c("HR", "Lower95%CI", "Upper95%CI", "pvalue")
+  resu$pvalue <- round(resu$pvalue, 5)
+  return(resu)
+}
+
+# funcio per comparar models
+compareModels <- function(oldmodel, newmodel){
+  compare <- data.frame(ordre= seq(1, nrow(oldmodel)), xvari= rownames(oldmodel), coefOld=log(oldmodel$HR), pvalOLd = oldmodel$pvalue)
+  theNew <- data.frame( xvari= rownames(newmodel), coefNew=log(newmodel$HR), pvalNew = newmodel$pvalue)
+  compare <- merge(compare, theNew, by = "xvari", all.x=TRUE)
+  compare <- compare[order(compare$ordre), ]
+  compare$change <-  with(compare, round((coefOld - coefNew)/ coefOld * 100, 2))
+  return(compare)
+}
+
+## Primary for CV
+datok$crCV <- with(datok, ifelse(EXITUS==0, 0, 
+                           ifelse(CAUSA_EXITUS%in%c(1,2,3,4,5,7), 1,
+                           ifelse(CAUSA_EXITUS%in%c(0,6),2, NA))))
+attr(datok$crCV, "vari.label") <- "CV death for Competing risk"
+attr(datok$crCV, "value.labels") <- c("Alive" =0, "crCV"=1, "No-CV death"= 2)
+@
+Initial Model
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="tiny">>=
+mod1a <- FGR(Hist(entry = VISITMONTH, time= end, event = crCV) ~ epi + SEX + Edat + IMCcat + etiology + 
+        HTA + EFcat + ACEI_ARB_s + ARNI_s + MRA_s, datok,  cause=1)
+resuCV1 <- arreglaMod(mod1a)
+resuCV1
+@
+Provo de treure algunes variables:
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="tiny">>=
+mod1b <- update(mod1a, . ~. - SEX  - IMCcat)
+resuCV1b <- arreglaMod(mod1b)
+
+compareModels(resuCV1, resuCV1b)
+@
+Veig que l'Edat i la HTA canvia més d'un 10\%. Crec que és millor deixar el primer model. 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Outcome = Non-Cardiovascular Death (competing Cardiovascular Death)}
+Initial Model
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="tiny">>=
+mod2a <- FGR(Hist(entry = VISITMONTH, time= end, event = crCV) ~ epi + SEX + Edat + IMCcat + etiology + 
+        HTA + EFcat + ACEI_ARB_s + ARNI_s + MRA_s, datok,  cause=2)
+resuCV2 <- arreglaMod(mod2a)
+resuCV2
+@
+Provo de treure algunes variables:
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="tiny">>=
+mod2b <- update(mod2a, . ~. - etiology - EFcat)
+resuCV2b <- arreglaMod(mod2b)
+
+compareModels(resuCV2, resuCV2b)
+@
+Es poden treure les variables (no cavien els coeficients més del 10\%). El model final queda:
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="tiny">>=
+resuCV2b
+@
+\end{document}
+

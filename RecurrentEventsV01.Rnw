@@ -1,0 +1,205 @@
+<<echo=FALSE, results='hide'>>=
+versi <- '01'
+@
+
+\documentclass[a4paper,12pt, titlepage]{article}
+\usepackage[english]{babel}
+\usepackage[svgnames]{xcolor} % Required for colour specification
+\newcommand{\plogo}{\fbox{$\mathcal{PL}$}} % Generic dummy publisher logo
+\usepackage[utf8x]{inputenc} % Required for inputting international characters
+\usepackage{longtable}
+\usepackage[a4paper,top=2cm,bottom=1.5cm,left=2cm,right=2cm]{geometry}
+\usepackage{multicol}
+%\usepackage[pdftex]{graphicx}
+\usepackage{fancyhdr}
+\usepackage[final]{pdfpages}
+\usepackage{amssymb,amsmath}
+%\usepackage{Sweave}
+\usepackage{enumerate}
+\usepackage{float}
+\usepackage{array}
+\newcolumntype{L}[1]{>{\raggedright\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
+\newcolumntype{C}[1]{>{\centering\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
+\newcolumntype{R}[1]{>{\raggedleft\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
+\usepackage{threeparttable, tablefootnote}
+\usepackage{lscape}
+\usepackage{multirow}
+\usepackage{pdflscape}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{colortbl, xcolor}
+\usepackage{color} 
+\usepackage{arydshln}
+%\usepackage{draftwatermark}
+%\SetWatermarkText{Draft}
+%\SetWatermarkScale{8}
+
+% to coloured verbatim
+\usepackage{fancyvrb}
+\DefineVerbatimEnvironment{verbatim}
+  {Verbatim}
+  {fontsize=\scriptsize,formatcom=\color{blue}}
+
+%\newcommand{\headrulecolor}[1]{\patchcmd{\headrule}{\hrule}{\color{#1}\hrule}{}{}}
+%\newcommand{\footrulecolor}[1]{\patchcmd{\footrule}{\hrule}{\color{#1}\hrule}{}{}}
+
+\pagestyle{fancy}% Change page style to fancy
+\fancyhf{}% Clear header/footer
+\fancyhead[L]{ }
+\fancyhead[C]{}
+\fancyhead[R]{}
+\fancyfoot[L]{Author: Joan Vila}
+\fancyfoot[R]{Page: \thepage}
+\renewcommand{\headrulewidth}{1.2pt}% Default \headrulewidth is 0.4pt
+\renewcommand{\footrulewidth}{0.8pt}% Default \footrulewidth is 0pt
+
+
+
+\newenvironment{changemargin1}{
+  \begin{list}{}{
+    \setlength{\leftmargin}{-1cm}
+    \setlength{\rightmargin}{1cm}
+    \footnotesize
+  }
+  \item[]
+  }{\end{list}}
+
+\setcounter{tocdepth}{4} 
+\setcounter{secnumdepth}{4}
+%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%
+\title{
+\begin{center}
+\textbf{\Huge {\color{red}``Analyzing Hospital Admission in ``Evolucio\_FG'' data selecting diabetic patients.''}\\
+\Large {(Hospital Admission = Repeated Events)}\\
+\
+\\
+\large Investigators:\\
+Pau Codina Verdaguer, \texttt{pau.codi@gmail.com}\\
+Josep Lupón Roses, \texttt{Jluponroses@gmail.com}}\\
+\
+\\
+Version \Sexpr{versi}\\
+\
+\\
+{\large - Joan Vila -}\\
+\normalsize \texttt{joanviladomenech{@}gmail.com}
+\date{\today} 
+\end{center}
+}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}
+\maketitle
+\newpage
+
+\section{Version History}
+\begin{table}[H]
+\centering
+\begin{tabular}{L{2cm}  C{3.5cm}  L{9cm}}
+\hline
+Version  & Effective Date & Changes \\
+\hline
+ &  & \\
+01 & 14-Sep-2022 & Primera informació sobre les dades\\
+ &  & \\
+ &  & \\
+&  & \\
+\hline
+\end{tabular}
+\end{table}
+\newpage
+\tableofcontents
+%\newpage
+%\listoftables 
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Càrrega de packages, dades, funcions, etc.}
+<<echo=TRUE, results='hide', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize">>=
+rm(list=ls())
+require("reReg")
+require("Hmisc")
+require("gdata")
+require("Epi")
+
+setwd("/Users/jvila/Dropbox/JLupon/FGdiabet/")
+load("./dat/MakingRecurrent.rda")
+options(width = 180)
+@
+\section{Introduction}
+Els ingressos i re-ingressos són ‘Recurrent events’. Per analitzar aquest tipus de dades cal el package ‘reReg’ i reordenar les dades. \\
+
+Nota els següents exemples:
+
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize">>=
+data(simDat) 
+head(simDat, 12)
+@
+\begin{itemize}
+\item El 'id=1' té un primer event en el moment 0.1817087, el següent al moment 0.8399818, etc. fins al moment 2.8402145, en el qual es mort (event=0 \& status= 1). 
+\item El 'id=2' també té events, però en el moment 60 s'acaba l'estudi i està viu (event=0 \& status= 0). 
+\end{itemize}
+Les variables 'x1' i 'x2' son exemples de variables explicatives. \\
+
+Amb aquest tipus de dades el tipus d'anàlisi que es pot fer és:
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize">>=
+fm <- Recur(t.start %to% t.stop, id, event, status) ~ x1 + x2 
+summary(reReg(fm, data = simDat, model = "cox", B = 50))
+exp(-1.00483)
+exp(-0.97517)
+@
+\begin{itemize}
+\item Comparat emb els que tenen 'x1 = 0', els que tenen 'x1 = 1', estan protegits (HR =0.3661069)
+\item Cada augment d'una unitat en 'x2', disminueix el risc (HR =0.3771282)
+\end{itemize}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Les dades del present estudi}
+Com es pot veure, per construir correctament la base de dades, cal saber a cada ingrés els mesos que han passat des del reclutament fins a cadascun dels events, incloent la mort o final de seguiment.\\
+
+S'ha de crear una base de dades (que després caldrà transformar) similar a:
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize">>=
+head(mydat)
+@
+
+\subsection{Falta data de reclutament}
+La base de dades te informació de \Sexpr{length(unique(datok$id))} individus, però n'hi ha \Sexpr{length(idsNoStart)} que no tenen data de reclutament (variable DATA\_0), p.e. el id = 41
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize">>=
+head(datok[datok$id==41, c("id", "DATA_0", "VISITMONTH")])
+@
+{\color{red} Aquests \Sexpr{length(idsNoStart)} individus, cal eliminar-los (???)}
+
+\subsection{Missings en el moment d'ingrés}
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize">>=
+subset(mydat, id==31)
+@
+\newpage
+\subsection{Reclutament i ingrés molt seguit (es pot solucionar)}
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize">>=
+subset(mydat, id==149)
+@
+\subsection{Ingresos al final}
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize">>=
+subset(mydat, id==74)
+@
+\subsection{Admissions al mateix mes}
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize">>=
+subset(mydat, id== 6)
+@
+\newpage
+\subsection{Combinacions de problemes}
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize">>=
+subset(mydat, id== 106)
+@
+
+\end{document}
+
+
+

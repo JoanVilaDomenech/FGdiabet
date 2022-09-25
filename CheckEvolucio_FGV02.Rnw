@@ -1,0 +1,566 @@
+\documentclass[a4paper,12pt, titlepage]{article}
+<<echo=FALSE, results='hide', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize">>=
+xversion <- "2.0"
+@
+
+\usepackage[english]{babel}
+\usepackage[svgnames]{xcolor} % Required for colour specification
+\newcommand{\plogo}{\fbox{$\mathcal{PL}$}} % Generic dummy publisher logo
+\usepackage[utf8x]{inputenc} % Required for inputting international characters
+\usepackage{longtable}
+\usepackage[a4paper,top=2cm,bottom=1.5cm,left=2cm,right=2cm]{geometry}
+\usepackage{multicol}
+%\usepackage[pdftex]{graphicx}
+\usepackage{fancyhdr}
+\usepackage[final]{pdfpages}
+\usepackage{amssymb,amsmath}
+%\usepackage{Sweave}
+\usepackage{enumerate}
+\usepackage{float}
+\usepackage{array}
+\newcolumntype{L}[1]{>{\raggedright\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
+\newcolumntype{C}[1]{>{\centering\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
+\newcolumntype{R}[1]{>{\raggedleft\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
+\usepackage{threeparttable, tablefootnote}
+\usepackage{lscape}
+\usepackage{multirow}
+\usepackage{pdflscape}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{colortbl, xcolor}
+\usepackage{color} 
+\usepackage{arydshln}
+%\usepackage{draftwatermark}
+%\SetWatermarkText{Draft}
+%\SetWatermarkScale{8}
+
+% to coloured verbatim
+\usepackage{fancyvrb}
+\DefineVerbatimEnvironment{verbatim}
+  {Verbatim}
+  {fontsize=\small,formatcom=\color{blue}}
+
+%\newcommand{\headrulecolor}[1]{\patchcmd{\headrule}{\hrule}{\color{#1}\hrule}{}{}}
+%\newcommand{\footrulecolor}[1]{\patchcmd{\footrule}{\hrule}{\color{#1}\hrule}{}{}}
+
+\pagestyle{fancy}% Change page style to fancy
+\fancyhf{}% Clear header/footer
+\fancyhead[L]{ }
+\fancyhead[C]{\tiny Evolucio FG}
+\fancyhead[R]{\today}
+\fancyfoot[L]{Author: Joan Vila}
+\fancyfoot[R]{Page: \thepage}
+\renewcommand{\headrulewidth}{1.2pt}% Default \headrulewidth is 0.4pt
+\renewcommand{\footrulewidth}{0.8pt}% Default \footrulewidth is 0pt
+
+
+
+\newenvironment{changemargin1}{
+  \begin{list}{}{
+    \setlength{\leftmargin}{-1cm}
+    \setlength{\rightmargin}{1cm}
+    \footnotesize
+  }
+  \item[]
+  }{\end{list}}
+
+\setcounter{tocdepth}{4} 
+\setcounter{secnumdepth}{4}
+%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%
+\title{
+\begin{center}
+\textbf{\Huge {\color{red}``Reproducing, with diabetic data (n=935), the ``Evolucio\_FG'' (pdf and html) document''}\\
+\
+\\
+\large Investigators:\\
+Pau Codina Verdaguer, \texttt{pau.codi@gmail.com}\\
+Josep Lupón Roses, \texttt{Jluponroses@gmail.com}}\\
+\
+\\
+Version \Sexpr{xversion}\\
+\
+\\
+{\large - Joan Vila -}\\
+\normalsize \texttt{joanviladomenech{@}gmail.com}
+\date{\today} 
+\end{center}
+}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}
+\maketitle
+\newpage
+
+\section{Version History}
+\begin{table}[H]
+\centering
+\begin{tabular}{L{2cm}  C{3.5cm}  L{9cm}}
+\hline
+Version  & Effective Date & Changes \\
+\hline
+ &  & \\
+1 & 15-May-2022 & Replicant el document ``Evolucio FG.html'' amb les  =  que em van enviar i que pentanyen als diabètics\\
+ &  & \\
+2 &  25-Sep-2022 & Adding categories to mixed models (IMC, Admissions, HTA, IECA/ARA, ARNI, Months of Evolution, HbA1c control, Baseline GF, Groups of Age/Sex)\\
+ &  & \\
+&  & \\
+\hline
+\end{tabular}
+\end{table}
+\newpage
+\tableofcontents
+%\newpage
+%\listoftables 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Càrrega de packages, dades, funcions}
+<<echo=TRUE, results='hide', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize">>=
+rm(list=ls())
+library(compareGroups)
+library(tidyverse)
+library(magrittr)
+library(emmeans)
+library(lme4) 
+library(multcomp)
+library(lmerTest)
+library(gdata)
+library(Hmisc)
+
+setwd("/Users/jvila/Dropbox/JLupon/FGdiabet/")
+
+load("./dat/datpre.rda")
+@
+
+Creació de 2 funcions:
+<<echo=TRUE, results='hide', warning=FALSE, error=FALSE, message=FALSE, size="scriptsize">>=
+Mixed_models_FG <- function(x, y){
+  #Model time continuous
+  lmer(y ~ x + x:VISIT_YEARS + (1|id), data=dades) -> model_temps_num
+  model_temps_num %>% cftest -> cftest_temps_num 
+  model_temps_num %>% anova -> anova_temps_num
+  
+  #Model time categorical
+  lmer(y ~ x + x:VISIT_YEARS_Cat + (1|id), data=dades) -> model_temps_cat
+  model_temps_cat %>% cftest -> cftest_temps_cat
+  model_temps_cat %>% anova -> anova_temps_cat
+
+  emmeans(model_temps_cat, ~ VISIT_YEARS_Cat*x) -> emmeans_model_temps_cat
+  
+  plot(emmeans_model_temps_cat) + coord_flip() -> plot_emmeans
+  
+  return(list(model_tnum = model_temps_num, anova_tnum = anova_temps_num, cftest_tnum = cftest_temps_num, 
+              model_tcat = model_temps_cat, anova_tcat = anova_temps_cat, cftest_tcat = cftest_temps_cat, 
+              emmeans_model_tcat = emmeans_model_temps_cat, plot_marginal_means = plot_emmeans))
+}
+
+logitudinal_plot <- function(dades_plot){
+    dades_plot %>% as.data.frame -> dades_plot
+    figura <- ggplot(data = dades_plot, aes(x =  VISIT_YEARS_Cat, y = emmean, group=x, fill=x)) + 
+      # geom_point(size=5, col=I("black")) + 
+      geom_line(aes(x = VISIT_YEARS_Cat, y = emmean, col=I("black")), lwd=1.3) + 
+      geom_ribbon(aes(ymin = asymp.LCL,ymax = asymp.UCL), lwd=1.5, width=0.5, alpha = 0.5) + 
+      theme_grey(base_size = 20) + xlab("Years") + ylab("...") + # facet_grid(x~.) + 
+      theme(axis.text.x=element_text(angle=90, hjust=1)) + theme(legend.title = element_blank()) 
+  return(figura)
+}
+@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+{\color{red} Elimino els que tenen seguiment $>$= 15anys, con es va fer a ``Evolucio FG.html''}
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize">>=
+# registres eliminats
+length(subset(datpre, VISIT_YEARS >=15)$id)
+
+# aquest registres s'eliminen en individus:
+length(unique(subset(datpre, VISIT_YEARS >=15)$id))
+
+# es treballa amb registres:
+dades <- subset(datpre, VISIT_YEARS < 15)
+length(unique(dades$id))
+@
+{\color{red} He detectat que amb la instrucció que hi ha a continuació hi havia dos errors (ja hi eren al sintaxis que em vàreu passar):
+\begin{itemize}
+\item Amb error: cut(dades\$VISIT\_YEARS, breaks = 0:19), 
+\item Sense error: cut(dades\$VISIT\_YEARS, breaks = 0:15, include.lowest = TRUE)
+\end{itemize}
+
+\textbf{breaks = 0:19}, talla els valors de IMC d’un en un fins a19. Però com que s’eliminen els valors més grans de 15, la instrucció correcta és breaks = 0:15\\
+
+\textbf{include.lowest = TRUE}, si no poses aquesta subinstrucció els valors de VISIT\_YEARS = 0 es quedem coma missing
+}
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize">>=
+dades$VISIT_YEARS %>% summary
+# dades$VISIT_YEARS_Cat <- cut(dades$VISIT_YEARS, breaks = 0:19)
+dades$VISIT_YEARS_Cat <- cut(dades$VISIT_YEARS, breaks = 0:15, include.lowest = TRUE)
+dades$VISIT_YEARS_Cat %>% table -> table_years_follow_up
+table_years_follow_up
+table_years_follow_up %>% plot
+@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Simple time model}
+{\color{red} El que hi ha en aquesta secció, no veig que serveixi per res}
+\subsection{Using VISIT\_YEARS as numeric}
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize", out.width="50%", cache=FALSE>>=
+library(sjlabelled)
+xdades <- dades[, c("epi", "VISIT_YEARS")]
+model_1 <- lm(epi ~ VISIT_YEARS, data=zap_labels(dades[, c("epi", "VISIT_YEARS")]))
+model_1 %>% summary
+model_1 %>% plot(c(1))
+model_1 %>% plot(c(2))
+model_1 %>% plot(c(3))
+@
+
+\subsection{Using VISIT\_YEARS as categories}
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize", out.width="50%", cache=FALSE>>=
+tapply(dades$epi, dades$VISIT_YEARS_Cat, mean)
+model_2 <- lm(epi ~ VISIT_YEARS_Cat, data=dades)
+emmeans(model_2, ~ VISIT_YEARS_Cat)
+plot(emmeans(model_2, ~ VISIT_YEARS_Cat)) + coord_flip()
+@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Mixed model}
+{\color{red} En aquesta secció s'analitza com canvia el epi al llarg dels anys, tenim en compte que un pacient té moltes mesures}
+\subsection{Using VISIT\_YEARS as numeric}
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize", out.width="50%", cache=FALSE>>=
+model_3 <- lmer(epi ~ VISIT_YEARS + (1|id), data=dades)
+model_3 %>% cftest
+
+model_3 %>% plot
+@
+\subsection{Using VISIT\_YEARS as categories}
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize", out.width="50%", cache=FALSE>>=
+model_4 <- lmer(epi ~ VISIT_YEARS_Cat + (1|id), data=dades)
+model_4 %>% cftest
+
+emmeans_model_temps_cat <- emmeans(model_4, ~ VISIT_YEARS_Cat)
+
+emmeans_model_temps_cat
+
+plot(emmeans_model_temps_cat) + coord_flip()
+@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Mixed model adding SEX}
+{\color{red} En aquesta secció s'analitza com canvia el epi al llarg dels anys segons el SEX}
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize", out.width="50%", cache=FALSE>>=
+model_sex <- Mixed_models_FG(dades$SEX, dades$epi)
+model_sex$anova_tnum
+model_sex$anova_tcat
+model_sex$cftest_tcat
+model_sex$emmeans_model_tcat
+model_sex$plot_marginal_means
+fiber.emt <- emtrends(model_sex$model_tnum, "x", var = "VISIT_YEARS")
+fiber.emt
+pairs(fiber.emt)
+model_sex$emmeans_model_tcat %>% logitudinal_plot + ylab('eFGR')
+@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Mixed model adding DIABET}
+{\color{red} Aquests models no els faig ja que precissament hem seleccionat diabetics }
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Mixed model adding FE (categories)}
+{\color{red} En aquesta secció s'analitza com canvia el epi al llarg dels anys segons categories de FE}
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize", out.width="50%", cache=FALSE>>=
+dades$FE_cat <- cut(dades$FE, breaks = c(4,40,49,86))
+dades$FE_cat_rec <- as.factor(dades$FE_cat)
+levels(dades$FE_cat_rec) <- c('EF<=40%', 'EF 41-49%', 'EF>=50')
+table(dades$FE_cat_rec, dades$FE_cat)
+model_FE <- Mixed_models_FG(dades$FE_cat_rec, dades$epi)
+model_FE$anova_tnum
+model_FE$cftest_tnum
+model_FE$anova_tcat
+model_FE$cftest_tcat
+model_FE$emmeans_model_tcat
+model_FE$plot_marginal_means
+fiber.emt <- emtrends(model_FE$model_tnum, "x", var = "VISIT_YEARS")
+fiber.emt
+pairs(fiber.emt)
+model_FE$emmeans_model_tcat %>% logitudinal_plot + ylab('eFGR')
+@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Mixed model adding Etiology}
+{\color{red} En aquesta secció s'analitza com canvia el epi al llarg dels anys segons categories de Etiology}
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize", out.width="50%", cache=FALSE>>=
+dades$ETIOLOGIA_rec <- ifelse(dades$ETIOLOGIA == 1, 'Ischemic', 'Non ischemic')
+model_ETIOLOGIA <- Mixed_models_FG(dades$ETIOLOGIA_rec, dades$epi)
+model_ETIOLOGIA$anova_tnum
+model_ETIOLOGIA$cftest_tnum
+model_ETIOLOGIA$anova_tcat
+model_ETIOLOGIA$cftest_tcat
+model_ETIOLOGIA$emmeans_model_tcat
+model_ETIOLOGIA$plot_marginal_means
+fiber.emt <- emtrends(model_ETIOLOGIA$model_tnum, "x", var = "VISIT_YEARS")
+fiber.emt
+pairs(fiber.emt)
+model_ETIOLOGIA$emmeans_model_tcat %>% logitudinal_plot + ylab('eFGR')
+@
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Mixed model adding Mortality}
+{\color{red} No veig clar aquests models. Hi ha variables explicatives (p.e. el SEX), però la mortalitat és un \textbf{outcome} i aquí s'utilitza com si fods una variable explicativa que expliqués els valors de ``epi'' quan és al revés: els valors de ``epi'' expliquen el outcome mortalitat. Ho vàreu publicar així??}
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize", out.width="50%", cache=FALSE>>=
+model_MORT <- Mixed_models_FG(dades$mort_rec, dades$epi)
+model_MORT$anova_tnum
+model_MORT$cftest_tnum
+model_MORT$anova_tcat
+model_MORT$cftest_tcat
+model_MORT$emmeans_model_tcat
+model_MORT$plot_marginal_means
+fiber.emt <- emtrends(model_MORT$model_tnum, "x", var = "VISIT_YEARS")
+fiber.emt
+pairs(fiber.emt)
+model_MORT$emmeans_model_tcat %>% logitudinal_plot + ylab('eFGR')
+@
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Mixed model adding IMC ($<$18.5; 18.5-24.9; 25-29.9; $>$=30)}
+{\color{red} Amb aquestes categories de IMC les figures queden una mica malament perquè hi ha molt posc individus amb IMC$<$18.5. Més endavant refaig el mateix anàlisi, però eliminant aquesta categoria}
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize", out.width="50%", cache=FALSE>>=
+table(dades$IMCcat, useNA = "ifany")
+@
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize", out.width="50%", cache=FALSE>>=
+model_imc <- Mixed_models_FG(dades$IMCcat, dades$epi)
+model_imc$anova_tnum
+model_imc$anova_tcat
+model_imc$cftest_tcat
+model_imc$emmeans_model_tcat
+model_imc$plot_marginal_means
+fiber.emt <- emtrends(model_imc$model_tnum, "x", var = "VISIT_YEARS")
+fiber.emt
+pairs(fiber.emt)
+model_imc$emmeans_model_tcat %>% logitudinal_plot + ylab('eFGR')
+@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Mixed model adding IMC (deleting $<$18.5 category)}
+{\color{red} Amb aquestes categories de IMC les figures queden una mica malament perquè hi ha molt posc individus amb IMC$<$18.5. Més endavant refaig el mateix anàlisi, però eliminant aquesta categoria}
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize", out.width="50%", cache=FALSE>>=
+xdades <- dades
+dades <- subset(dades, IMCcat!="<18.5")
+model_imc <- Mixed_models_FG(dades$IMCcat, dades$epi)
+model_imc$anova_tnum
+model_imc$anova_tcat
+model_imc$cftest_tcat
+model_imc$emmeans_model_tcat
+model_imc$plot_marginal_means
+fiber.emt <- emtrends(model_imc$model_tnum, "x", var = "VISIT_YEARS")
+fiber.emt
+pairs(fiber.emt)
+model_imc$emmeans_model_tcat %>% logitudinal_plot + ylab('eFGR')
+dades <- xdades
+@
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Mixed model adding Number of Admissions (grouped)}
+
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize", out.width="50%", cache=FALSE>>=
+model_admi <- Mixed_models_FG(dades$ingressos_agrupats, dades$epi)
+model_admi$anova_tnum
+model_admi$anova_tcat
+model_admi$cftest_tcat
+model_admi$emmeans_model_tcat
+model_admi$plot_marginal_means
+fiber.emt <- emtrends(model_admi$model_tnum, "x", var = "VISIT_YEARS")
+fiber.emt
+pairs(fiber.emt)
+model_admi$emmeans_model_tcat %>% logitudinal_plot + ylab('eFGR')
+@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Mixed model adding HTA}
+
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize", out.width="50%", cache=FALSE>>=
+model_HTA <- Mixed_models_FG(dades$HTA, dades$epi)
+model_HTA$anova_tnum
+model_HTA$anova_tcat
+model_HTA$cftest_tcat
+model_HTA$emmeans_model_tcat
+model_HTA$plot_marginal_means
+fiber.emt <- emtrends(model_HTA$model_tnum, "x", var = "VISIT_YEARS")
+fiber.emt
+pairs(fiber.emt)
+model_HTA$emmeans_model_tcat %>% logitudinal_plot + ylab('eFGR')
+@
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Mixed model adding IECA/ARA II}
+
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize", out.width="50%", cache=FALSE>>=
+model_ACEI_ARB <- Mixed_models_FG(dades$ACEI_ARB_s, dades$epi)
+model_ACEI_ARB$anova_tnum
+model_ACEI_ARB$anova_tcat
+model_ACEI_ARB$cftest_tcat
+model_ACEI_ARB$emmeans_model_tcat
+model_ACEI_ARB$plot_marginal_means
+fiber.emt <- emtrends(model_ACEI_ARB$model_tnum, "x", var = "VISIT_YEARS")
+fiber.emt
+pairs(fiber.emt)
+model_ACEI_ARB$emmeans_model_tcat %>% logitudinal_plot + ylab('eFGR')
+@
+{\color{red}A la figura de més amunt, la categoria ``No'', es queda a mig camí. La raó és que al llarg del temps tothom acaba rebent el tractament}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Mixed model adding ARNI}
+
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize", out.width="50%", cache=FALSE>>=
+model_ARNI <- Mixed_models_FG(dades$ARNI_s, dades$epi)
+model_ARNI$anova_tnum
+model_ARNI$anova_tcat
+model_ARNI$cftest_tcat
+model_ARNI$emmeans_model_tcat
+model_ARNI$plot_marginal_means
+fiber.emt <- emtrends(model_ARNI$model_tnum, "x", var = "VISIT_YEARS")
+fiber.emt
+pairs(fiber.emt)
+model_ARNI$emmeans_model_tcat %>% logitudinal_plot + ylab('eFGR')
+@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Mixed model adding Months of Evolution of HF}
+
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize", out.width="50%", cache=FALSE>>=
+model_evolMoths <- Mixed_models_FG(dades$evolMoths, dades$epi)
+model_evolMoths$anova_tnum
+model_evolMoths$anova_tcat
+model_evolMoths$cftest_tcat
+model_evolMoths$emmeans_model_tcat
+model_evolMoths$plot_marginal_means
+fiber.emt <- emtrends(model_evolMoths$model_tnum, "x", var = "VISIT_YEARS")
+fiber.emt
+pairs(fiber.emt)
+model_evolMoths$emmeans_model_tcat %>% logitudinal_plot + ylab('eFGR')
+@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Mixed model adding HbA1c control (cutoff 50\%.)}
+{\color{red} Recordar que hi ha missings: \Sexpr{sum(is.na(dades$HbA1ccat50))} de \Sexpr{nrow(dades)}}
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize", out.width="50%", cache=FALSE>>=
+model_HbA1ccat50 <- Mixed_models_FG(dades$HbA1ccat50, dades$epi)
+model_HbA1ccat50$anova_tnum
+model_HbA1ccat50$anova_tcat
+model_HbA1ccat50$cftest_tcat
+model_HbA1ccat50$emmeans_model_tcat
+model_HbA1ccat50$plot_marginal_means
+fiber.emt <- emtrends(model_HbA1ccat50$model_tnum, "x", var = "VISIT_YEARS")
+fiber.emt
+pairs(fiber.emt)
+model_HbA1ccat50$emmeans_model_tcat %>% logitudinal_plot + ylab('eFGR')
+@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Mixed model adding Baseline Glomerular Filtration (i.e. Epi categories)}
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize", out.width="50%", cache=FALSE>>=
+model_FGbasal <- Mixed_models_FG(dades$FGbasal, dades$epi)
+model_FGbasal$anova_tnum
+model_FGbasal$anova_tcat
+model_FGbasal$cftest_tcat
+model_FGbasal$emmeans_model_tcat
+model_FGbasal$plot_marginal_means
+fiber.emt <- emtrends(model_FGbasal$model_tnum, "x", var = "VISIT_YEARS")
+fiber.emt
+pairs(fiber.emt)
+model_FGbasal$emmeans_model_tcat %>% logitudinal_plot + ylab('eFGR')
+
+@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{Mixed model adding Age (Up/Low 50yo) and Sex)}
+{\color{red} Proposaves fer: 
+\begin{itemize}
+\item Dones ($<$50a o $\geq$50a) pel possible efecte protector hormonal que es perd després de la menopausa. 
+\item Dones $<$50a vs homes $<$50 anys i dones $\geq$50anys vs homes $\geq$50anys.
+\end{itemize}
+
+M’ha semblat de crear una variable amb 4 categories:
+\begin{itemize}
+\item Dones $<$50a
+\item Dones $\geq$50a
+\item Homes $<$50a
+\item Homes $\geq$50a
+\end{itemize}
+i seguir la mateixa dinàmica de la resta.\\
+
+Veuràs que més endavant hi ha la comparació de cada grup (amb un comentari meu).\\
+
+Nota que hi ha poques dones de $<$50a:
+}
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize", out.width="50%", cache=FALSE>>=
+table(datpre$SexAge, useNA = "ifany")
+@
+
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize", out.width="50%", cache=FALSE>>=
+model_SexAge <- Mixed_models_FG(dades$SexAge, dades$epi)
+model_SexAge$anova_tnum
+model_SexAge$anova_tcat
+model_SexAge$cftest_tcat
+model_SexAge$emmeans_model_tcat
+model_SexAge$plot_marginal_means
+fiber.emt <- emtrends(model_SexAge$model_tnum, "x", var = "VISIT_YEARS")
+fiber.emt
+pairs(fiber.emt)
+@
+{\color{red}Nota que:
+\begin{itemize}
+\item en el subgrup de dones, no hi ha diferencies significatives entre grups d'edat (pvalue =0.3619)
+\item  que en subgrup de $<$50a, els homes no es diferencien significativament de les dones (pvalue =0.9927)
+\item  que en subgrup de $\geq$50a, els homes i les dones es diferencien significativament (pvalue =0.0001)
+\item en el subgrup de homes, hi ha diferencies significatives entre grups d'edat (pvalue =0.0035)
+\end{itemize}
+}
+
+
+<<echo=TRUE, results='markup', warning=FALSE, error=FALSE, message=FALSE, size="footnotesize", out.width="50%", cache=FALSE>>=
+model_SexAge$emmeans_model_tcat %>% logitudinal_plot + ylab('eFGR')
+
+@
+\end{document}
+
